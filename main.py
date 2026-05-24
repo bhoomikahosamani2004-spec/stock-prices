@@ -2,7 +2,7 @@ import os
 import json
 import threading
 from collections import deque
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, KafkaException
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -27,30 +27,41 @@ kafka_config = {
     'sasl.username': KAFKA_USERNAME,
     'sasl.password': KAFKA_PASSWORD,
     'auto.offset.reset': 'latest',
+    'enable.auto.commit': True,
 }
 
-# Store last 50 events per topic
 price_data = deque(maxlen=50)
 fraud_data = deque(maxlen=50)
 alert_data = deque(maxlen=50)
 
 def consume_topic(topic, storage, group_id):
-    config = {**kafka_config, 'group.id': group_id}
-    consumer = Consumer(config)
-    consumer.subscribe([topic])
     while True:
-        msg = consumer.poll(1.0)
-        if msg and not msg.error():
-            try:
-                data = json.loads(msg.value().decode('utf-8'))
-                storage.appendleft(data)
-            except Exception as e:
-                print(f"Error: {e}")
+        try:
+            config = {**kafka_config, 'group.id': group_id}
+            consumer = Consumer(config)
+            consumer.subscribe([topic])
+            print(f"Subscribed to {topic}")
+            while True:
+                msg = consumer.poll(1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    print(f"Error on {topic}: {msg.error()}")
+                    continue
+                try:
+                    data = json.loads(msg.value().decode('utf-8'))
+                    storage.appendleft(data)
+                    print(f"Received from {topic}: {data}")
+                except Exception as e:
+                    print(f"Parse error: {e}")
+        except Exception as e:
+            print(f"Consumer crashed for {topic}, restarting: {e}")
+            import time
+            time.sleep(5)
 
-# Start background consumers
-threading.Thread(target=consume_topic, args=("price-aggregated", price_data, "dashboard-price"), daemon=True).start()
-threading.Thread(target=consume_topic, args=("fraud-alerts", fraud_data, "dashboard-fraud"), daemon=True).start()
-threading.Thread(target=consume_topic, args=("stock-prices", alert_data, "dashboard-alert"), daemon=True).start()
+threading.Thread(target=consume_topic, args=("price-aggregated", price_data, "db-price-v1"), daemon=True).start()
+threading.Thread(target=consume_topic, args=("fraud-alerts", fraud_data, "db-fraud-v1"), daemon=True).start()
+threading.Thread(target=consume_topic, args=("stock-prices", alert_data, "db-alert-v1"), daemon=True).start()
 
 @app.get("/prices")
 def get_prices():
