@@ -17,8 +17,8 @@ app.add_middleware(
 )
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "my-cluster-kafka-bootstrap.kafka.svc:9092")
-KAFKA_USERNAME = os.getenv("KAFKA_USERNAME", "")
-KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD", "")
+KAFKA_USERNAME = os.getenv("KAFKA_USERNAME", "693bggvqxivs40d8pamjwr5bi")
+KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD", "WC3mwbnBCst3iEu0t2UszAL6JchNhkNC")
 
 kafka_config = {
     'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
