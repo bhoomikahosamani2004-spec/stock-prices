@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Condense Stock Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #00ff9d;
+    --danger: #ff4566;
+    --warning: #ffb800;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 1.2rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.5s infinite;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .main {
+    padding: 1.5rem 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 1rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 0.9rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .card-header .badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+  }
+
+  .badge-live { background: rgba(0,255,157,0.15); color: var(--accent2); }
+  .badge-warn { background: rgba(255,69,102,0.15); color: var(--danger); }
+  .badge-info { background: rgba(0,212,255,0.15); color: var(--accent); }
+
+  /* Ticker grid */
+  .ticker-grid {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+  }
+
+  .ticker-cell {
+    padding: 1rem 1.2rem;
+    border-right: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+  .ticker-cell:last-child { border-right: none; }
+  .ticker-cell:hover { background: var(--surface2); }
+
+  .ticker-name {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .ticker-price {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .ticker-change {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+  .up { color: var(--accent2); }
+  .down { color: var(--danger); }
+
+  /* Price chart */
+  .chart-card {
+    grid-column: 1 / 3;
+  }
+
+  .chart-wrap {
+    padding: 1rem;
+    height: 260px;
+    position: relative;
+  }
+
+  /* Fraud alerts */
+  .alerts-card {
+    grid-column: 3 / 4;
+    grid-row: 2 / 4;
+  }
+
+  .alerts-list {
+    padding: 0.5rem;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+
+  .alerts-list::-webkit-scrollbar { width: 4px; }
+  .alerts-list::-webkit-scrollbar-track { background: transparent; }
+  .alerts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .alert-item {
+    padding: 0.8rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    border-left: 3px solid var(--danger);
+    background: rgba(255,69,102,0.05);
+    animation: slideIn 0.3s ease;
+  }
+
+  .alert-item.medium {
+    border-left-color: var(--warning);
+    background: rgba(255,184,0,0.05);
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .alert-ticker {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sev-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+  }
+  .sev-HIGH { background: rgba(255,69,102,0.2); color: var(--danger); }
+  .sev-MEDIUM { background: rgba(255,184,0,0.2); color: var(--warning); }
+
+  .alert-detail {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* Order book */
+  .orderbook-card {
+    grid-column: 1 / 2;
+  }
+
+  /* Stats */
+  .stats-card {
+    grid-column: 2 / 3;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+  .stat-cell {
+    padding: 1rem 1.2rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-cell:nth-child(even) { border-right: none; }
+  .stat-cell:nth-child(3), .stat-cell:nth-child(4) { border-bottom: none; }
+
+  .stat-label {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-value.danger { color: var(--danger); }
+  .stat-value.success { color: var(--accent2); }
+
+  .order-table {
+    width: 100%;
+    padding: 0.5rem;
+  }
+
+  .order-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    border-radius: 4px;
+    animation: slideIn 0.3s ease;
+  }
+  .order-row:hover { background: var(--surface2); }
+  .order-row.header { color: var(--muted); font-size: 0.65px; letter-spacing: 1px; }
+  .order-row.header { font-size: 0.65rem; color: var(--muted); }
+  .buy-side { color: var(--accent2); }
+  .sell-side { color: var(--danger); }
+
+  .error-banner {
+    text-align: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  #last-update {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⬡ Condense &nbsp;/&nbsp; Stock Intelligence</div>
+  <div class="status-bar">
+    <span><span class="live-dot"></span>Live</span>
+    <span id="last-update">Connecting...</span>
+    <span id="msg-count">0 events</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Ticker strip -->
+  <div class="card ticker-grid" id="ticker-strip">
+    <div class="ticker-cell"><div class="ticker-name">Loading...</div></div>
+  </div>
+
+  <!-- Price Chart -->
+  <div class="card chart-card">
+    <div class="card-header">
+      Price feed <span class="badge badge-live">Live</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Fraud Alerts -->
+  <div class="card alerts-card">
+    <div class="card-header">
+      Fraud alerts <span class="badge badge-warn" id="fraud-count">0</span>
+    </div>
+    <div class="alerts-list" id="fraud-list">
+      <div class="error-banner">Waiting for alerts...</div>
+    </div>
+  </div>
+
+  <!-- Order Book -->
+  <div class="card orderbook-card">
+    <div class="card-header">
+      Order book <span class="badge badge-info">Live</span>
+    </div>
+    <div class="order-table">
+      <div class="order-row header">
+        <span>Ticker</span><span>Side</span><span>Price</span><span>Qty</span>
+      </div>
+      <div id="order-rows"></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="card stats-card">
+    <div class="card-header">Pipeline stats</div>
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <div class="stat-label">Total events</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Fraud alerts</div>
+        <div class="stat-value danger" id="stat-fraud">0</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Active tickers</div>
+        <div class="stat-value success" id="stat-tickers">0</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">High severity</div>
+        <div class="stat-value danger" id="stat-high">0</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'https://demo.condense.zeliot.in/142ddbb0-1586-4bc7-bee9-852aee3d9d18';
+
+let totalEvents = 0;
+let fraudCount = 0;
+let highSeverity = 0;
+let tickerMap = {};
+let priceHistory = {};
+let orderRows = [];
+let chartLabels = [];
+let chartDatasets = {};
+let chart;
+const COLORS = ['#00d4ff','#00ff9d','#ffb800','#ff4566','#a78bfa','#fb923c'];
+const TICKERS_TO_CHART = ['AAPL','GOOGL','TSLA','MSFT','AMZN'];
+
+function initChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Space Mono', size: 10 }, boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 6 }, grid: { color: '#1e2d45' } },
+        y: { ticks: { color: '#64748b', font: { family: 'Space Mono', size: 9 } }, grid: { color: '#1e2d45' } }
+      }
+    }
+  });
+}
+
+function updateChart(ticker, price, time) {
+  if (!TICKERS_TO_CHART.includes(ticker)) return;
+  if (price < 0) return;
+
+  const label = new Date(time * 1000).toLocaleTimeString();
+  if (!chartDatasets[ticker]) {
+    const idx = Object.keys(chartDatasets).length;
+    chartDatasets[ticker] = {
+      label: ticker,
+      data: [],
+      borderColor: COLORS[idx % COLORS.length],
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.3
+    };
+    chart.data.datasets.push(chartDatasets[ticker]);
+  }
+
+  if (chart.data.labels.length === 0 || chart.data.labels[chart.data.labels.length-1] !== label) {
+    chart.data.labels.push(label);
+    if (chart.data.labels.length > 30) chart.data.labels.shift();
+    chart.data.datasets.forEach(ds => { if (ds.data.length < chart.data.labels.length) ds.data.push(null); });
+  }
+
+  const ds = chartDatasets[ticker];
+  if (ds.data.length < chart.data.labels.length) {
+    ds.data.push(price);
+  } else {
+    ds.data[ds.data.length - 1] = price;
+  }
+  if (ds.data.length > 30) ds.data.shift();
+  chart.update('none');
+}
+
+function updateTickers() {
+  const strip = document.getElementById('ticker-strip');
+  const tickers = Object.entries(tickerMap);
+  if (tickers.length === 0) return;
+  strip.innerHTML = tickers.slice(0, 6).map(([t, d]) => `
+    <div class="ticker-cell">
+      <div class="ticker-name">${t}</div>
+      <div class="ticker-price">${Math.abs(d.price).toFixed(2)}</div>
+      <div class="ticker-change ${d.change >= 0 ? 'up' : 'down'}">
+        ${d.change >= 0 ? '▲' : '▼'} ${Math.abs(d.change).toFixed(2)}%
+      </div>
+    </div>
+  `).join('');
+}
+
+function addFraudAlert(item) {
+  fraudCount++;
+  highSeverity += item.severity === 'HIGH' ? 1 : 0;
+  document.getElementById('fraud-count').textContent = fraudCount;
+  document.getElementById('stat-fraud').textContent = fraudCount;
+  document.getElementById('stat-high').textContent = highSeverity;
+
+  const list = document.getElementById('fraud-list');
+  if (list.querySelector('.error-banner')) list.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = `alert-item ${item.severity === 'HIGH' ? '' : 'medium'}`;
+  div.innerHTML = `
+    <div class="alert-ticker">
+      ${item.ticker} — ${item.broker_id}
+      <span class="sev-badge sev-${item.severity}">${item.severity}</span>
+    </div>
+    <div class="alert-detail">${(item.fraud_types||[]).join(', ')} · ₱${item.price?.toFixed(2)} · qty ${item.quantity?.toLocaleString()}</div>
+  `;
+  list.prepend(div);
+  if (list.children.length > 20) list.removeChild(list.lastChild);
+}
+
+function addOrderRow(item) {
+  const container = document.getElementById('order-rows');
+  const div = document.createElement('div');
+  div.className = `order-row`;
+  div.innerHTML = `
+    <span>${item.ticker}</span>
+    <span class="${item.side === 'BUY' ? 'buy-side' : 'sell-side'}">${item.side}</span>
+    <span>${item.price?.toFixed(2)}</span>
+    <span>${item.quantity?.toLocaleString()}</span>
+  `;
+  container.prepend(div);
+  if (container.children.length > 8) container.removeChild(container.lastChild);
+}
+
+async function fetchData() {
+  try {
+    const [pricesRes, fraudRes] = await Promise.all([
+      fetch(`${API}/alerts`),
+      fetch(`${API}/fraud`)
+    ]);
+
+    if (pricesRes.ok) {
+      const prices = await pricesRes.json();
+      prices.forEach(item => {
+        totalEvents++;
+        if (item.ticker && item.price !== undefined) {
+          if (item.change_pct !== undefined) {
+            tickerMap[item.ticker] = { price: Math.abs(item.price), change: item.change_pct };
+            updateChart(item.ticker, Math.abs(item.price), item.timestamp);
+          } else if (item.side) {
+            addOrderRow(item);
+          }
+        }
+      });
+      updateTickers();
+    }
+
+    if (fraudRes.ok) {
+      const frauds = await fraudRes.json();
+      const newFrauds = frauds.slice(0, 5);
+      newFrauds.forEach(item => addFraudAlert(item));
+    }
+
+    document.getElementById('stat-total').textContent = totalEvents.toLocaleString();
+    document.getElementById('stat-tickers').textContent = Object.keys(tickerMap).length;
+    document.getElementById('last-update').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    document.getElementById('msg-count').textContent = `${totalEvents} events`;
+
+  } catch(e) {
+    document.getElementById('last-update').textContent = 'Connection error — retrying...';
+  }
+}
+
+initChart();
+fetchData();
+setInterval(fetchData, 2000);
+</script>
+</body>
+</html>
